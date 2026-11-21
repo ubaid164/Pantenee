@@ -60,6 +60,30 @@ def copy_notices(target):
         shutil.copy2(python_license, notices / "Python.txt")
 
 
+def write_archive(result, entries):
+    result.parent.mkdir(parents=True, exist_ok=True)
+    pending = result.with_suffix(".tmp")
+    with ZipFile(pending, "w", compression=ZIP_DEFLATED, compresslevel=3) as archive:
+        for path, name in entries:
+            archive.write(path, name.as_posix())
+    with ZipFile(pending) as archive:
+        failed = archive.testzip()
+        if failed:
+            raise ValueError(f"Release archive failed its CRC check: {failed}")
+    pending.replace(result)
+    print(f"{result} ({result.stat().st_size:,} bytes)")
+
+
+def build_setup(model, output):
+    folder = Path("Pantenee")
+    license_file = ROOT / "licenses" / "Whisper-MIT.txt"
+    entries = [(ROOT / name, folder / name) for name in SOURCE_FILES]
+    entries += [(model / name, folder / "model" / name) for name in MODEL_FILES]
+    entries.extend([(license_file, folder / "model" / "LICENSE"),
+                    (license_file, folder / "licenses" / license_file.name)])
+    write_archive(output / "Pantenee-Setup.zip", entries)
+
+
 def build(model, output):
     if sys.platform != "win32" or struct.calcsize("P") != 8 or platform.machine() != "AMD64":
         raise RuntimeError("Build the release using x64 Python on Windows.")
@@ -84,27 +108,21 @@ def build(model, output):
         shutil.copy2(ROOT / filename, target / filename)
     copy_notices(target)
 
-    output.mkdir(parents=True, exist_ok=True)
-    result = output / "Pantenee-Windows-x64.zip"
-    pending = result.with_suffix(".tmp")
-    with ZipFile(pending, "w", compression=ZIP_DEFLATED, compresslevel=3) as archive:
-        for entry in sorted(target.rglob("*")):
-            if entry.is_file():
-                archive.write(entry, entry.relative_to(target.parent).as_posix())
-    with ZipFile(pending) as archive:
-        failed = archive.testzip()
-        if failed:
-            raise ValueError(f"Release archive failed its CRC check: {failed}")
-    pending.replace(result)
-    print(f"{result} ({result.stat().st_size:,} bytes)")
+    entries = ((path, path.relative_to(target.parent)) for path in sorted(target.rglob("*"))
+               if path.is_file())
+    write_archive(output / "Pantenee-Windows-x64.zip", entries)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, default=ROOT / "model")
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
-    parser.add_argument("--model-only", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--model-only", action="store_true")
+    mode.add_argument("--setup-only", action="store_true")
     options = parser.parse_args()
     prepare_model(options.model.resolve())
-    if not options.model_only:
+    if options.setup_only:
+        build_setup(options.model.resolve(), options.output.resolve())
+    elif not options.model_only:
         build(options.model.resolve(), options.output.resolve())

@@ -6,11 +6,11 @@ Pantenee is a Windows desktop cat for offline dictation and a few local voice wo
 
 Use **Windows 11 x64** with a working microphone. A four-core Intel or AMD CPU, **8 GB RAM**, and **2 GB of free space** are a practical starting point. Pantenee runs on the CPU. The current build targets x64 Windows.
 
-1. Download `Pantenee-Windows-x64.zip` from **Releases** and extract the entire ZIP.
-2. Open `Pantenee.exe` and wait for **Ready**. Keep `_internal` and `model` beside the executable.
+1. Download `Pantenee-Setup.zip` and extract the entire ZIP. [Releases](https://github.com/ubaid164/Pantenee/releases)
+2. Install 64-bit Python 3.12 with Tkinter. Open `Run with Python.cmd` and wait for **Ready**. Keep `model` beside the launcher.
 3. Click a text field, hold **Left Ctrl**, speak, and release to type.
 
-The executable is unsigned. If your Windows policy blocks it, open `Run with Python.cmd` using an approved 64-bit Python 3.12 installation with Tkinter. The Python launcher installs dependencies on its first run. The downloaded ZIP includes the speech model.
+The launcher installs dependencies on its first run. The downloaded ZIP includes the speech model for offline inference.
 
 ## Voice workflows
 
@@ -39,6 +39,6 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe tools\build_release.py
 ```
 
-The build downloads and verifies the pinned Whisper model and writes `dist/Pantenee-Windows-x64.zip`. Run from source with `python pantenee.py`. The first source launch may download the model if `model/` is absent.
+The build downloads and verifies the pinned Whisper model and writes `dist/Pantenee-Windows-x64.zip` for local testing. That standalone executable is unsigned. Run from source with `python pantenee.py`. The first source launch may download the model if `model/` is absent.
 
-GitHub Actions builds and exercises transcription on a Windows x64 runner. Before tagging a public release, try the ZIP on a separate Windows PC. Check microphone access, Left Ctrl dictation into Notepad, the workflow hotkey, and the cat’s click-through behavior. Use Releases for the ZIP and keep generated files and local settings out of Git.
+GitHub Actions builds and exercises transcription on a Windows x64 runner. A `v*` tag publishes a preview with the Python launcher and bundled model after the tests pass. Before marking a release as stable, try the ZIP on a separate Windows PC. Check microphone access, Left Ctrl dictation into Notepad, the workflow hotkey, and the cat’s click-through behavior. Keep generated files and local settings out of Git.
