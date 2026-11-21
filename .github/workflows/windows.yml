@@ -1,0 +1,42 @@
+name: Windows x64
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+      - run: python -m pip install -r requirements-build.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python tools/build_release.py
+      - name: Test packaged offline transcription
+        shell: pwsh
+        env:
+          HF_HUB_OFFLINE: '1'
+        run: |
+          $app = Join-Path $PWD 'dist\Pantenee\Pantenee.exe'
+          $fixture = Join-Path $PWD 'tests\fixtures\speech.wav'
+          $process = Start-Process $app -ArgumentList "--check-model `"$fixture`"" -PassThru -Wait -WindowStyle Hidden
+          exit $process.ExitCode
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pantenee-Windows-x64
+          path: dist/Pantenee-Windows-x64.zip
+          if-no-files-found: error

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+model/
+*.zip
+*.log
+settings.json
+notes/
+.env
+.env.*
