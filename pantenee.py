@@ -11,10 +11,8 @@ from queue import Empty, SimpleQueue
 from tkinter import messagebox, ttk
 
 from desktop_pet import PET_MODES, Cat, CursorPet, animations_enabled
-from speech import SpeechWorker, check_model
+from speech import EnglishTranslation, SpeechWorker, check_model
 from win_input import HOTKEYS, HoldKey, close_handle, create_mutex, insert_text
-from workflows import DEFAULT_PHRASES, match_phrase, run_workflow
-from workflow_window import WorkflowWindow
 
 
 APP_NAME = "Pantenee"
@@ -24,6 +22,35 @@ SETTINGS = APP_DATA / "settings.json"
 APP_FOLDER = Path(sys.executable if getattr(sys, "frozen", False) else __file__).parent
 MODEL_DIR = Path(os.environ.get("PANTENEE_MODEL_DIR") or APP_FOLDER / "model")
 MIN_HOLD = 0.28
+AS_SPOKEN = "As spoken"
+URDU_TO_ENGLISH = "Urdu → English"
+AUTO_TO_ENGLISH = "Auto-detect → English"
+TRANSLATION_LANGUAGES = {
+    "Arabic": "ar",
+    "Bengali": "bn",
+    "Chinese (Mandarin)": "zh",
+    "French": "fr",
+    "German": "de",
+    "Hindi": "hi",
+    "Indonesian": "id",
+    "Japanese": "ja",
+    "Marathi": "mr",
+    "Portuguese": "pt",
+    "Punjabi": "pa",
+    "Russian": "ru",
+    "Spanish": "es",
+    "Tamil": "ta",
+    "Telugu": "te",
+    "Turkish": "tr",
+    "Urdu": "ur",
+    "Vietnamese": "vi",
+}
+DICTATION_OUTPUTS = {
+    AS_SPOKEN: None,
+    AUTO_TO_ENGLISH: EnglishTranslation(),
+    **{f"{language} → English": EnglishTranslation(code)
+       for language, code in TRANSLATION_LANGUAGES.items()},
+}
 PAPER = "#fff8ee"
 TEXT = "#29201b"
 MUTED = "#6b5147"
@@ -41,19 +68,16 @@ def load_settings(default_pet):
         data = json.loads(settings.read_text(encoding="utf-8"))
         key = data.get("key")
         pet = data.get("pet")
-        phrases = data.get("phrases", {})
-        phrases = {action: phrases.get(action, default) if isinstance(phrases, dict)
-                   and isinstance(phrases.get(action), str) else default
-                   for action, default in DEFAULT_PHRASES.items()}
-        apps = data.get("apps", [])
+        legacy_output = URDU_TO_ENGLISH if data.get("translate_urdu") is True else AS_SPOKEN
+        output = data.get("dictation_output", legacy_output)
         return (key if key in HOTKEYS else "Left Ctrl", data.get("enter") is True,
-                pet if pet in PET_MODES else default_pet, phrases,
-                [path for path in apps if isinstance(path, str)] if isinstance(apps, list) else [])
+                pet if pet in PET_MODES else default_pet,
+                output if isinstance(output, str) and output in DICTATION_OUTPUTS else AS_SPOKEN)
     except FileNotFoundError:
         pass
     except (OSError, ValueError, AttributeError, TypeError):
         logging.exception("Settings could not be read")
-    return "Left Ctrl", False, default_pet, DEFAULT_PHRASES.copy(), []
+    return "Left Ctrl", False, default_pet, AS_SPOKEN
 
 
 def configure_styles(root):
@@ -91,20 +115,20 @@ class DictationApp:
         self.target = None
         self.send_enter = False
         self.last_text = ""
-        self.is_workflow = False
-        self.workflow_window = None
+        self.translation = None
 
         animate = animations_enabled()
-        key, enter, pet, self.phrases, self.work_apps = load_settings(
+        key, enter, pet, dictation_output = load_settings(
             "Follow cursor" if animate else "While dictating")
         self.key = tk.StringVar(value=key)
         self.enter = tk.BooleanVar(value=enter)
         self.pet_mode = tk.StringVar(value=pet)
+        self.dictation_output = tk.StringVar(value=dictation_output)
         self.help = tk.StringVar()
         initial_status = ("Loading the local Whisper model…" if MODEL_DIR.is_dir()
                           else "Loading Whisper… The first run may download the model.")
         self.status = tk.StringVar(value=initial_status)
-        self.hook = HoldKey(self.events, HOTKEYS[key], HOTKEYS[self.workflow_key()])
+        self.hook = HoldKey(self.events, HOTKEYS[key])
         preview = self.build_window()
         self.pet = CursorPet(root, preview, animate)
         self.pet.set_mode(pet)
@@ -138,8 +162,6 @@ class DictationApp:
         self.settings_button = ttk.Button(actions, text="Settings", command=self.toggle_settings,
                                           style="Pet.TButton")
         self.settings_button.pack(side="left")
-        ttk.Button(actions, text="Workflows", command=self.show_workflows,
-                   style="Pet.TButton").pack(side="left", padx=(6, 0))
         self.copy_button = ttk.Button(actions, text="Copy transcript", command=self.copy,
                                       state="disabled", style="Pet.TButton")
         self.copy_button.pack(side="right")
@@ -148,15 +170,18 @@ class DictationApp:
         self.options.grid(row=4, column=0, columnspan=2, sticky="ew")
         self.options.columnconfigure(1, weight=1)
         for row, (label, variable, values) in enumerate((("Hold key", self.key, tuple(HOTKEYS)),
+                                                        ("Dictation output", self.dictation_output,
+                                                         tuple(DICTATION_OUTPUTS)),
                                                         ("Pantenee pet", self.pet_mode, PET_MODES))):
             ttk.Label(self.options, text=label, style="Pet.TLabel").grid(row=row, column=0, sticky="w")
             picker = ttk.Combobox(self.options, textvariable=variable, values=values,
-                                  width=16, state="readonly", style="Pet.TCombobox")
+                                  width=27 if variable is self.dictation_output else 16,
+                                  state="readonly", style="Pet.TCombobox")
             picker.grid(row=row, column=1, sticky="e", pady=3)
             picker.bind("<<ComboboxSelected>>", self.change_settings)
         ttk.Checkbutton(self.options, text="Press Enter after typing", variable=self.enter,
                         command=self.change_settings, style="Pet.TCheckbutton").grid(
-                            row=2, column=0, columnspan=2, sticky="w", pady=(3, 0))
+                            row=3, column=0, columnspan=2, sticky="w", pady=(3, 0))
         self.options.grid_remove()
         return preview
 
@@ -169,23 +194,8 @@ class DictationApp:
             self.settings_button.configure(text="Hide settings")
 
     def update_help(self):
-        self.help.set(f"Hold {self.key.get()} to dictate. Hold {self.workflow_key()} for workflows.")
-
-    def workflow_key(self):
-        return "Left Ctrl" if self.key.get() == "Right Ctrl" else "Right Ctrl"
-
-    def show_workflows(self):
-        if self.workflow_window and self.workflow_window.winfo_exists():
-            self.workflow_window.lift()
-            return
-        self.workflow_window = WorkflowWindow(self.root, self.phrases, self.work_apps,
-                                              self.save_workflows, self.workflow_key())
-
-    def save_workflows(self, phrases, apps):
-        if self.save_settings(phrases, apps):
-            self.phrases, self.work_apps = phrases, apps
-            return True
-        return False
+        use = "dictate" if self.dictation_output.get() == AS_SPOKEN else "translate to English"
+        self.help.set(f"Hold {self.key.get()} to {use}. Release to type.")
 
     def present(self, message, state):
         self.status.set(message)
@@ -194,25 +204,24 @@ class DictationApp:
 
     def change_settings(self, _event=None):
         self.hook.key = HOTKEYS[self.key.get()]
-        self.hook.workflow_key = HOTKEYS[self.workflow_key()]
         self.update_help()
         self.pet.set_mode(self.pet_mode.get())
-        self.save_settings(self.phrases, self.work_apps)
-
-    def save_settings(self, phrases, apps):
+        settings = {
+            "key": self.key.get(),
+            "enter": self.enter.get(),
+            "pet": self.pet_mode.get(),
+            "dictation_output": self.dictation_output.get(),
+        }
         try:
             temporary = SETTINGS.with_suffix(".tmp")
-            temporary.write_text(json.dumps({"key": self.key.get(), "enter": self.enter.get(),
-                                             "pet": self.pet_mode.get(), "phrases": phrases,
-                                             "apps": apps}, ensure_ascii=False),
-                                 encoding="utf-8")
+            temporary.write_text(json.dumps(settings, ensure_ascii=False), encoding="utf-8")
             temporary.replace(SETTINGS)
-            return True
         except OSError:
             logging.exception("Settings could not be saved")
             messagebox.showerror(APP_NAME, "Could not save settings to this Windows profile.",
                                  parent=self.root)
-            return False
+        if self.phase is None:
+            self.refresh_ready()
 
     def copy(self):
         self.root.clipboard_clear()
@@ -225,7 +234,9 @@ class DictationApp:
         if self.startup_error:
             self.present(self.startup_error, "error")
         elif self.hook.enabled:
-            self.present("Ready · Offline", "idle")
+            output = self.dictation_output.get()
+            mode = "Offline" if output == AS_SPOKEN else output
+            self.present(f"Ready · {mode}", "idle")
 
     def poll(self):
         while True:
@@ -248,16 +259,16 @@ class DictationApp:
         elif kind in ("model_error", "hotkey_error"):
             self.startup_error = value or "Could not register the global key. Check the app log."
             self.refresh_ready()
-        elif kind in ("hold", "workflow_hold") and self.hook.enabled:
+        elif kind == "hold" and self.hook.enabled:
             self.held_at, self.target = value
             self.send_enter = self.enter.get()
-            self.is_workflow = kind == "workflow_hold"
+            self.translation = DICTATION_OUTPUTS[self.dictation_output.get()]
             self.phase = "held"
             self.hook.enabled = False
             self.present("Opening microphone…", "opening")
             self.commands.put("record")
         elif kind == "recording" and self.phase == "held":
-            self.present("Listening for a workflow…" if self.is_workflow else "Listening…", "listening")
+            self.present("Listening…", "listening")
         elif kind in ("release", "cancel") and self.phase == "held":
             self.phase = "processing"
             if kind == "cancel" or value[0] - self.held_at < MIN_HOLD:
@@ -265,33 +276,15 @@ class DictationApp:
             else:
                 if value[1] != self.target:
                     self.target = None
-                self.present("Transcribing…", "thinking")
-                self.commands.put("transcribe")
+                self.present("Translating…" if self.translation else "Transcribing…", "thinking")
+                self.commands.put(self.translation or "transcribe")
         elif kind in ("transcript", "discarded", "speech_error"):
             self.phase = None
             self.refresh_ready()
             if kind == "transcript":
-                if self.is_workflow and value:
-                    self.launch_workflow(value)
-                else:
-                    self.deliver(value)
+                self.deliver(value)
             elif kind == "speech_error":
                 self.present(value, "error")
-
-    def launch_workflow(self, text):
-        action = match_phrase(text, self.phrases)
-        if action is None:
-            self.present(f"No workflow matched “{text[:48]}”. Check your phrases in Workflows.", "error")
-            return
-        try:
-            message = run_workflow(action, self.work_apps, APP_DATA / "notes")
-        except ValueError as error:
-            self.present(str(error), "error")
-        except OSError:
-            logging.exception("Could not run the workflow")
-            self.present("Windows couldn’t open that workflow.", "error")
-        else:
-            self.present(message, "done")
 
     def deliver(self, text):
         if not text:

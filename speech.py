@@ -4,9 +4,15 @@ import logging
 import os
 import threading
 import wave
+from dataclasses import dataclass
 
 
 WHISPER_RATE = 16000
+
+
+@dataclass(frozen=True)
+class EnglishTranslation:
+    source_language: str | None = None
 
 
 def pcm_samples(data, rate):
@@ -26,8 +32,10 @@ def pcm_samples(data, rate):
     return np.concatenate([frame.to_ndarray().ravel() for frame in frames])
 
 
-def transcribe(model, audio):
-    segments, _ = model.transcribe(audio, beam_size=1, vad_filter=True,
+def transcribe(model, audio, *, translation=None):
+    segments, _ = model.transcribe(audio, language=translation.source_language if translation else None,
+                                   task="translate" if translation else "transcribe",
+                                   beam_size=1, vad_filter=True,
                                    condition_on_previous_text=False)
     return " ".join(segment.text.strip() for segment in segments if segment.text.strip())
 
@@ -96,7 +104,9 @@ class SpeechWorker:
                 self.events.put(("discarded", None))
                 continue
             try:
-                text = transcribe(model, audio) if audio is not None and audio.size else ""
+                translation = command if isinstance(command, EnglishTranslation) else None
+                text = (transcribe(model, audio, translation=translation)
+                        if audio is not None and audio.size else "")
                 self.events.put(("transcript", text))
             except Exception:
                 logging.exception("Transcription failed")
@@ -115,6 +125,6 @@ class SpeechWorker:
             self.events.put(("recording", None))
             command = self.commands.get()
 
-        if command != "transcribe" or not frames:
+        if (command != "transcribe" and not isinstance(command, EnglishTranslation)) or not frames:
             return command, None
         return command, pcm_samples(b"".join(frames), rate)

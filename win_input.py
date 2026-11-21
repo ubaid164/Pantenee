@@ -101,10 +101,9 @@ def insert_text(text, target, press_enter=False):
 class HoldKey:
     """Track a single hold and cancel it on keyboard or mouse shortcuts."""
 
-    def __init__(self, events, key, workflow_key=None):
+    def __init__(self, events, key):
         self.events = events
         self.key = key
-        self.workflow_key = workflow_key
         self.enabled = False
         self.pressed = set()
         self.trigger = None
@@ -134,14 +133,12 @@ class HoldKey:
                 return swallow
             if self.trigger is not None:
                 self.cancel()
-            elif self.enabled and key in (self.key, self.workflow_key) and not self.pressed:
+            elif self.enabled and key == self.key and not self.pressed:
                 self.trigger = key
                 if key not in (HOTKEYS["Left Ctrl"], HOTKEYS["Right Ctrl"]):
                     self.suppressed = key
                     swallow = True
-                event = "hold" if key == self.key else "workflow_hold"
-                target = focused_target() if event == "hold" else None
-                self.events.put((event, (time.monotonic(), target)))
+                self.events.put(("hold", (time.monotonic(), focused_target())))
             self.pressed.add(key)
         else:
             self.pressed.discard(key)

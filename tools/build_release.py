@@ -17,8 +17,8 @@ MODEL_REPO = "Systran/faster-whisper-base"
 MODEL_REVISION = "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66"
 MODEL_SHA256 = "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9"
 MODEL_FILES = ("config.json", "model.bin", "tokenizer.json", "vocabulary.txt", "README.md")
-SOURCE_FILES = ("pantenee.py", "desktop_pet.py", "speech.py", "win_input.py", "workflows.py",
-                "workflow_window.py", "Run with Python.cmd", "requirements.txt", "README.md",
+SOURCE_FILES = ("pantenee.py", "desktop_pet.py", "speech.py", "win_input.py",
+                "Run with Python.cmd", "requirements.txt", "README.md",
                 "THIRD_PARTY.md")
 
 

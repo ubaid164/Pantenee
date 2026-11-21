@@ -1,6 +1,6 @@
 # Pantenee
 
-Pantenee is a Windows desktop cat for offline dictation and a few local voice workflows. It follows your cursor, shows when it’s listening, and stays out of the way of clicks and typing.
+Pantenee is a Windows desktop cat for offline dictation and translation. It follows your cursor, shows when it’s listening, and stays out of the way of clicks and typing.
 
 ## Run Pantenee
 
@@ -12,17 +12,9 @@ Use **Windows 11 x64** with a working microphone. A four-core Intel or AMD CPU, 
 
 The launcher installs dependencies on its first run. The downloaded ZIP includes the speech model for offline inference.
 
-## Voice workflows
+To speak one language and type English, open **Settings → Dictation output** and pick a language such as **Chinese (Mandarin) → English**, **Spanish → English**, or **Urdu → English**. Choose **Auto-detect → English** to let Whisper pick the language for each recording. Hold your dictation key, speak, and release to type the translation. Select **As spoken** for output in the original language. Translation uses the bundled model offline.
 
-Hold **Right Ctrl**, say a configured phrase, and release. Open **Workflows** to set each phrase in the language you speak and choose your work apps. If **Right Ctrl** is your dictation key, **Left Ctrl** takes over for workflows.
-
-| Default phrase | Action |
-| --- | --- |
-| `Open Downloads` | Opens the Windows Downloads folder. |
-| `Open work apps` | Opens the apps or shortcuts you selected. |
-| `Open daily note` | Creates or opens today’s text note. An existing note keeps its contents. |
-
-The workflow hotkey matches transcripts to those three actions. Ordinary dictation types text into the focused field. Settings and daily notes live in `%LOCALAPPDATA%\Pantenee`. In **Settings**, choose the dictation key, pet behavior, and whether **Enter** follows a transcript.
+Settings live in `%LOCALAPPDATA%\Pantenee`. In **Settings**, choose the dictation key, pet behavior, and whether **Enter** follows a transcript.
 
 ## Models and privacy
 
@@ -41,4 +33,4 @@ py -3.12 -m venv .venv
 
 The build downloads and verifies the pinned Whisper model and writes `dist/Pantenee-Windows-x64.zip` for local testing. That standalone executable is unsigned. Run from source with `python pantenee.py`. The first source launch may download the model if `model/` is absent.
 
-GitHub Actions builds and exercises transcription on a Windows x64 runner. A `v*` tag publishes a preview with the Python launcher and bundled model after the tests pass. Before marking a release as stable, try the ZIP on a separate Windows PC. Check microphone access, Left Ctrl dictation into Notepad, the workflow hotkey, and the cat’s click-through behavior. Keep generated files and local settings out of Git.
+GitHub Actions builds and exercises transcription on a Windows x64 runner. A `v*` tag publishes a preview with the Python launcher and bundled model after the tests pass. Before marking a release as stable, try the ZIP on a separate Windows PC. Check microphone access, Left Ctrl dictation and translation into Notepad, and the cat’s click-through behavior. Keep generated files and local settings out of Git.
