@@ -93,7 +93,7 @@ class SpeechWorker:
                 continue
 
             try:
-                command, audio = self.record(sd)
+                command, samples, rate = self.record(sd)
             except Exception:
                 logging.exception("Microphone capture failed")
                 self.events.put(("speech_error", "Could not open or read the default microphone."))
@@ -102,6 +102,12 @@ class SpeechWorker:
                 return
             if command == "cancel":
                 self.events.put(("discarded", None))
+                continue
+            try:
+                audio = pcm_samples(samples, rate) if samples else None
+            except Exception:
+                logging.exception("Audio preparation failed")
+                self.events.put(("speech_error", "Could not prepare the recording. Check the app log."))
                 continue
             try:
                 translation = command if isinstance(command, EnglishTranslation) else None
@@ -125,6 +131,6 @@ class SpeechWorker:
             self.events.put(("recording", None))
             command = self.commands.get()
 
-        if (command != "transcribe" and not isinstance(command, EnglishTranslation)) or not frames:
-            return command, None
-        return command, pcm_samples(b"".join(frames), rate)
+        if command == "transcribe" or isinstance(command, EnglishTranslation):
+            return command, b"".join(frames), rate
+        return command, b"", rate
