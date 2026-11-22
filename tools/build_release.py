@@ -1,4 +1,4 @@
-"""Build a Windows x64 ZIP with a pinned Whisper Base model."""
+"""Build a Windows x64 ZIP with a pinned Whisper Small model."""
 
 import argparse
 import hashlib
@@ -13,12 +13,13 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_REPO = "Systran/faster-whisper-base"
-MODEL_REVISION = "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66"
-MODEL_SHA256 = "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9"
+MODEL_REPO = "Systran/faster-whisper-small"
+MODEL_REVISION = "536b0662742c02347bc0e980a01041f333bce120"
+MODEL_SHA256 = "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
 MODEL_FILES = ("config.json", "model.bin", "tokenizer.json", "vocabulary.txt", "README.md")
 SOURCE_FILES = ("pantenee.py", "desktop_pet.py", "speech.py", "win_input.py",
-                "Run with Python.cmd", "requirements.txt", "README.md",
+                "translation.py", "setup_translation.py", "Set up translation.cmd",
+                "Run with Python.cmd", "requirements.txt", "README.md", "CHANGELOG.md",
                 "THIRD_PARTY.md")
 
 
@@ -28,7 +29,7 @@ def verify_model(directory):
             raise ValueError(f"Missing model file: {filename}")
     with (directory / "model.bin").open("rb") as weights:
         if hashlib.file_digest(weights, "sha256").hexdigest() != MODEL_SHA256:
-            raise ValueError("Whisper Base weights did not match the pinned SHA-256.")
+            raise ValueError("Whisper Small weights did not match the pinned SHA-256.")
 
 
 def prepare_model(directory):
