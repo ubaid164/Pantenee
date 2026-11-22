@@ -2,6 +2,8 @@
 
 Pantenee is a Windows desktop cat for offline dictation and translation. It follows your cursor, shows when it’s listening, and stays out of the way of clicks and typing.
 
+[Changelog and model versions](CHANGELOG.md)
+
 ## Run Pantenee
 
 Use **Windows 11 x64** with a working microphone. A four-core Intel or AMD CPU, **8 GB RAM**, and **2 GB of free space** are a practical starting point. Pantenee runs on the CPU. The current build targets x64 Windows.
